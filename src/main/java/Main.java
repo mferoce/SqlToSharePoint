@@ -24,6 +24,7 @@ import java.io.*;
 import java.sql.*;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 
 public class Main {
@@ -59,7 +60,7 @@ public class Main {
             rs = p.executeQuery();
             int nColumns = rs.getMetaData().getColumnCount(); 
             int nRows = ((ResultSetImpl) rs).getRows().size();
-            rangeAddress = getRangeAddressFromRs("CK1", rs, nColumns, nRows);
+            rangeAddress = getRangeAddressFromFirstCell("CK1", nColumns, nRows);
             values = buildJsonArrayValues(rs, nColumns);
             con.close();
         } catch (ClassNotFoundException | SQLException e) {
@@ -78,7 +79,7 @@ public class Main {
         authenticateAndUpdate(propertiesNenomics, rangeAddress, patchBody);
     }
 
-    private static String getRangeAddressFromRs(String firstCell, ResultSet rs, int nColumns, int nRows) throws SQLException {
+    private static String getRangeAddressFromFirstCell(String firstCell, int nColumns, int nRows) throws SQLException {
         String[] columnsRows = firstCell.split("(?<=\\D)(?=\\d)|(?<=\\d)(?=\\D)");
         String newRow = String.valueOf(Integer.parseInt(columnsRows[1]) + nRows-1);
         String newColumn = addIntToColumnValue(columnsRows[0], nColumns-1);
@@ -87,24 +88,20 @@ public class Main {
 
     private static String addIntToColumnValue(String s, int toAdd) {
         char[] charArr = s.toCharArray();
-        char newLetSec;
-        char newLetFirst;
-        int newLetIntSec;
-        int newLetIntFirst;
-        int toAddFirstLetter=0;
-        //A = 10
-        //Z = 35
-
-        newLetIntSec = Character.getNumericValue(charArr[charArr.length -1])+toAdd;
-        while(newLetIntSec > 35){
-            newLetIntSec -= 25;
-            toAddFirstLetter++;
+        List<Character> cellValues = new ArrayList<>();
+        int sumval = 0;
+        for (int i = 0; i< charArr.length; i++) {
+            sumval += Math.pow(26,charArr.length-1-i) * (Character.getNumericValue(charArr[i])-9);//A=1, B=2
         }
-        newLetIntFirst = Character.getNumericValue(charArr[0])+toAddFirstLetter;
-        newLetSec = Character.toUpperCase(Character.forDigit(newLetIntSec, 36));
-        newLetFirst = Character.toUpperCase(Character.forDigit(newLetIntFirst, 36));
-
-        return newLetFirst +Character.toString(newLetSec);
+        sumval+=toAdd;
+        int lettVal;
+        while(sumval/26>=1){
+            lettVal = sumval%26;
+            cellValues.add(0,Character.toUpperCase(Character.forDigit(lettVal+9, 36)));
+            sumval = Math.floorDiv(sumval,26);
+        }
+        cellValues.add(0,Character.toUpperCase(Character.forDigit(sumval+9, 36)));
+        return  cellValues.stream().map(String::valueOf).collect(Collectors.joining());
     }
 
     private static JsonArray buildJsonArrayValues(ResultSet rs, int columnSize) throws SQLException {
